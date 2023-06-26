@@ -667,21 +667,22 @@ struct UTPSocket {
 	size_t get_packet_size() const;
 };
 
-void removeSocketFromAckList(UTPSocket *conn)
+static void removeSocketFromAckList(UTPSocket *conn)
 {
-	if (conn->ida >= 0)
-	{
-		UTPSocket *last = conn->ctx->ack_sockets[conn->ctx->ack_sockets.GetCount() - 1];
+	auto const ida = conn->ida;
+	if (ida < 0)
+		return;
 
-		assert(last->ida < (int)(conn->ctx->ack_sockets.GetCount()));
-		assert(conn->ctx->ack_sockets[last->ida] == last);
-		last->ida = conn->ida;
-		conn->ctx->ack_sockets[conn->ida] = last;
-		conn->ida = -1;
+	auto& acks = conn->ctx->ack_sockets;
+	assert(acks[ida]->ida == ida);
 
-		// Decrease the count
-		conn->ctx->ack_sockets.SetCount(conn->ctx->ack_sockets.GetCount() - 1);
-	}
+	// fast-remove `conn` from acks by swapping w/last and resizing.
+	// update `ida` index for both swapped sockets.
+	// note the steps need to be safe even when conn == acks.back()
+	std::swap(acks[ida], acks.back());
+	acks[ida]->ida = ida;
+	acks.resize(acks.size() - 1U);
+	conn->ida = -1;
 }
 
 static void utp_register_sent_packet(utp_context *ctx, size_t length)
@@ -715,7 +716,8 @@ void UTPSocket::schedule_ack()
 		#if UTP_DEBUG_LOGGING
 		log(UTP_LOG_DEBUG, "schedule_ack");
 		#endif
-		ida = ctx->ack_sockets.Append(this);
+		ida = ctx->ack_sockets.size();
+		ctx->ack_sockets.push_back(this);
 	} else {
 		#if UTP_DEBUG_LOGGING
 		log(UTP_LOG_DEBUG, "schedule_ack: already in list");
@@ -2923,12 +2925,9 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 	if (flags != ST_SYN) {
 		ctx->current_ms = utp_call_get_milliseconds(ctx, NULL);
 
-		for (size_t i = 0; i < ctx->rst_info.GetCount(); i++) {
-			if ((ctx->rst_info[i].connid == id)   &&
-				(ctx->rst_info[i].addr   == addr) &&
-				(ctx->rst_info[i].ack_nr == seq_nr))
-			{
-				ctx->rst_info[i].timestamp = ctx->current_ms;
+		for (auto& info : ctx->rst_info) {
+			if ((info.connid == id) && (info.addr == addr) && (info.ack_nr == seq_nr)) {
+				info.timestamp = ctx->current_ms;
 
 				#if UTP_DEBUG_LOGGING
 				ctx->log(UTP_LOG_DEBUG, NULL, "recv not sending RST to non-SYN (stored)");
@@ -2938,7 +2937,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 			}
 		}
 
-		if (ctx->rst_info.GetCount() > RST_INFO_LIMIT) {
+		if (ctx->rst_info.size() > RST_INFO_LIMIT) {
 
 			#if UTP_DEBUG_LOGGING
 			ctx->log(UTP_LOG_DEBUG, NULL, "recv not sending RST to non-SYN (limit at %u stored)", (uint)ctx->rst_info.GetCount());
@@ -2951,11 +2950,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 		ctx->log(UTP_LOG_DEBUG, NULL, "recv send RST to non-SYN (%u stored)", (uint)ctx->rst_info.GetCount());
 		#endif
 
-		RST_Info &r = ctx->rst_info.Append();
-		r.addr = addr;
-		r.connid = id;
-		r.ack_nr = seq_nr;
-		r.timestamp = ctx->current_ms;
+		ctx->rst_info.emplace_back(addr, id, seq_nr, ctx->current_ms);
 
 		UTPSocket::send_rst(ctx, addr, id, seq_nr, utp_call_get_random(ctx, NULL));
 		return 1;
@@ -3280,7 +3275,7 @@ void utp_issue_deferred_acks(utp_context *ctx)
 	assert(ctx);
 	if (!ctx) return;
 
-	for (size_t i = 0; i < ctx->ack_sockets.GetCount(); i++) {
+	for (size_t i = 0; i < ctx->ack_sockets.size(); i++) {
 		UTPSocket *conn = ctx->ack_sockets[i];
 		conn->send_ack();
 		i--;
@@ -3300,15 +3295,16 @@ void utp_check_timeouts(utp_context *ctx)
 
 	ctx->last_check = ctx->current_ms;
 
-	for (size_t i = 0; i < ctx->rst_info.GetCount(); i++) {
-		if ((int)(ctx->current_ms - ctx->rst_info[i].timestamp) >= RST_INFO_TIMEOUT) {
-			ctx->rst_info.MoveUpLast(i);
+	auto& infos = ctx->rst_info;
+	for (size_t i = 0; i < infos.size(); i++) {
+		if ((int)(ctx->current_ms - infos[i].timestamp) >= RST_INFO_TIMEOUT) {
+			// fast-remove from `infos` by swapping w/last and resizing
+			std::swap(infos[i], infos.back());
+			infos.resize(infos.size() - 1U);
 			i--;
 		}
 	}
-	if (ctx->rst_info.GetCount() != ctx->rst_info.GetAlloc()) {
-		ctx->rst_info.Compact();
-	}
+	infos.shrink_to_fit();
 
 	utp_hash_iterator_t it;
 	UTPSocketKeyData* keyData;

@@ -28,6 +28,8 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include <vector>
+
 #include "utp.h"
 #include "utp_callbacks.h"
 #include "utp_templates.h"
@@ -59,6 +61,16 @@ enum bandwidth_type_t {
 #endif
 
 struct PACKED_ATTRIBUTE RST_Info {
+	RST_Info() = default;
+
+  RST_Info(PackedSockAddr _addr, uint32 _connid, uint16 _ack_nr, uint64 _timestamp)
+		: addr{ _addr }
+		, connid{ _connid }
+		, ack_nr{ _ack_nr }
+		, timestamp{ _timestamp }
+	{
+	}
+
 	PackedSockAddr addr;
 	uint32 connid;
 	uint16 ack_nr;
@@ -117,8 +129,8 @@ struct struct_utp_context {
 	uint64 current_ms;
 	utp_context_stats context_stats;
 	UTPSocket *last_utp_socket;
-	Array<UTPSocket*> ack_sockets;
-	Array<RST_Info> rst_info;
+	std::vector<UTPSocket*> ack_sockets;
+	std::vector<RST_Info> rst_info;
 	UTPSocketHT *utp_sockets;
 	size_t target_delay;
 	size_t opt_sndbuf;

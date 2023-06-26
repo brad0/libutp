@@ -20,6 +20,8 @@
  * THE SOFTWARE.
  */
 
+#include <assert.h>
+
 #include "utp_hash.h"
 #include "utp_types.h"
 
