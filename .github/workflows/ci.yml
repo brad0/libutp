@@ -1,5 +1,11 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - "*-transmission"
+  pull_request:
+    branches:
+      - "*-transmission"
 jobs:
   build_cmake:
     runs-on: ${{ matrix.runner }}
