@@ -41,6 +41,8 @@
 #endif
 
 // Utility templates
+#undef min
+#undef max
 
 template <typename T> static inline T clamp(T v, T mi, T ma)
 {
