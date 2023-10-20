@@ -395,7 +395,7 @@ struct DelayHist {
 	{
 		uint32 value = UINT_MAX;
 		for (size_t i = 0; i < CUR_DELAY_SIZE; i++) {
-			value = std::min<uint32>(cur_delay_hist[i], value);
+			value = std::min(cur_delay_hist[i], value);
 		}
 		// value could be UINT_MAX if we have no samples yet...
 		return value;
@@ -802,7 +802,7 @@ void UTPSocket::send_ack(bool synack)
 		// if the packet ack_nr + 1 has not yet
 		// been received
 		assert(inbuf.get(ack_nr + 1) == NULL);
-		size_t window = std::min<size_t>(14+16, inbuf.size());
+		size_t window = std::min(size_t{ 14U + 16U }, inbuf.size());
 		// Generate bit mask of segments received.
 		for (size_t i = 0; i < window; i++) {
 			if (inbuf.get(ack_nr + i + 2) != NULL) {
@@ -933,7 +933,7 @@ bool UTPSocket::is_full(int bytes)
 	size_t packet_size = get_packet_size();
 	if (bytes < 0) bytes = packet_size;
 	else if (bytes > (int)packet_size) bytes = (int)packet_size;
-	size_t max_send = std::min<size_t>({ max_window, opt_sndbuf, max_window_user });
+	size_t max_send = std::min({ max_window, opt_sndbuf, max_window_user });
 
 	// subtract one to save space for the FIN packet
 	if (cur_window_packets >= OUTGOING_BUFFER_MAX_SIZE - 1) {
@@ -1018,7 +1018,7 @@ void UTPSocket::write_outgoing_packet(size_t payload, uint flags, struct utp_iov
 		// and it hasn't been sent yet, fill that frame first
 		if (payload && pkt && !pkt->transmissions && pkt->payload < packet_size) {
 			// Use the previous unsent packet
-			added = std::min<size_t>(payload + pkt->payload, std::max<size_t>(packet_size, pkt->payload)) - pkt->payload;
+			added = std::min(payload + pkt->payload, std::max(packet_size, pkt->payload)) - pkt->payload;
 			pkt = (OutgoingPacket*)realloc(pkt,
 										   (sizeof(OutgoingPacket) - 1) +
 										   header_size +
@@ -1057,7 +1057,7 @@ void UTPSocket::write_outgoing_packet(size_t payload, uint flags, struct utp_iov
 				if (iovec[i].iov_len == 0)
 					continue;
 
-				size_t num = std::min<size_t>(needed, iovec[i].iov_len);
+				size_t num = std::min(needed, iovec[i].iov_len);
 				memcpy(p, iovec[i].iov_base, num);
 
 				p += num;
@@ -1071,7 +1071,6 @@ void UTPSocket::write_outgoing_packet(size_t payload, uint flags, struct utp_iov
 		}
 		pkt->payload += added;
 		pkt->length = header_size + pkt->payload;
-
 		last_rcv_win = get_rcv_window();
 
 		PacketFormatV1* p1 = (PacketFormatV1*)pkt->data;
@@ -1387,7 +1386,7 @@ int UTPSocket::ack_packet(uint16 seq)
 //			assert(rtt < 6000);
 			rtt_hist.add_sample(ertt, ctx->current_ms);
 		}
-		rto = std::max<uint>(rtt + rtt_var * 4, 1000);
+		rto = std::max<uint>(rtt + rtt_var * 4U, 1000U);
 
 		#if UTP_DEBUG_LOGGING
 		log(UTP_LOG_DEBUG, "rtt:%u avg:%u var:%u rto:%u",
@@ -1708,7 +1707,7 @@ void UTPSocket::apply_ccontrol(size_t bytes_acked, uint32 actual_delay, int64 mi
 			slow_start = false;
 			ssthresh = max_window;
 		} else {
-			max_window = std::max<size_t>(ss_cwnd, ledbat_cwnd);
+			max_window = std::max(ss_cwnd, ledbat_cwnd);
 		}
 	} else {
 		max_window = ledbat_cwnd;
@@ -3206,7 +3205,7 @@ ssize_t utp_writev(utp_socket *conn, struct utp_iovec *iovec_input, size_t num_i
 
 	// don't send unless it will all fit in the window
 	size_t packet_size = conn->get_packet_size();
-	size_t num_to_send = std::min<size_t>(bytes, packet_size);
+	size_t num_to_send = std::min(bytes, packet_size);
 	while (!conn->is_full(num_to_send)) {
 		// Send an outgoing packet.
 		// Also add it to the outgoing of packets that have been sent but not ACKed.
@@ -3223,7 +3222,7 @@ ssize_t utp_writev(utp_socket *conn, struct utp_iovec *iovec_input, size_t num_i
 			conn->cur_window_packets);
 		#endif
 		conn->write_outgoing_packet(num_to_send, ST_DATA, iovec, num_iovecs);
-		num_to_send = std::min<size_t>(bytes, packet_size);
+		num_to_send = std::min(bytes, packet_size);
 
 		if (num_to_send == 0) {
 			#if UTP_DEBUG_LOGGING
@@ -3339,7 +3338,7 @@ int utp_getpeername(utp_socket *conn, struct sockaddr *addr, socklen_t *addrlen)
 
 	socklen_t len;
 	const SOCKADDR_STORAGE sa = conn->addr.get_sockaddr_storage(&len);
-	*addrlen = std::min<socklen_t>(len, *addrlen);
+	*addrlen = std::min(len, *addrlen);
 	memcpy(addr, &sa, *addrlen);
 	return 0;
 }
@@ -3388,7 +3387,7 @@ void utp_close(UTPSocket *conn)
 		break;
 
 	case CS_SYN_SENT:
-		conn->rto_timeout = utp_call_get_milliseconds(conn->ctx, conn) + std::min<uint>(conn->rto * 2, 60);
+		conn->rto_timeout = utp_call_get_milliseconds(conn->ctx, conn) + std::min(conn->rto * 2U, 60U);
 		// fall through
 	case CS_GOT_FIN:
 		conn->state = CS_DESTROY_DELAY;
