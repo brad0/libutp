@@ -1018,7 +1018,7 @@ void UTPSocket::write_outgoing_packet(size_t payload, uint flags, struct utp_iov
 		// and it hasn't been sent yet, fill that frame first
 		if (payload && pkt && !pkt->transmissions && pkt->payload < packet_size) {
 			// Use the previous unsent packet
-			added = std::min(payload + pkt->payload, std::max<size_t>(packet_size, pkt->payload)) - pkt->payload;
+			added = std::min<size_t>(payload + pkt->payload, std::max<size_t>(packet_size, pkt->payload)) - pkt->payload;
 			pkt = (OutgoingPacket*)realloc(pkt,
 										   (sizeof(OutgoingPacket) - 1) +
 										   header_size +
@@ -1215,7 +1215,7 @@ void UTPSocket::check_timeouts()
 					// idling. No need to be aggressive about resetting the
 					// congestion window. Just let it decay by a 3:rd.
 					// don't set it any lower than the packet size though
-					max_window = std::max(max_window * 2 / 3, size_t(packet_size));
+					max_window = std::max<size_t>(max_window * 2 / 3, size_t(packet_size));
 				} else {
 					// our delay was so high that our congestion window
 					// was shrunk below one packet, preventing us from
@@ -1676,7 +1676,7 @@ void UTPSocket::apply_ccontrol(size_t bytes_acked, uint32 actual_delay, int64 mi
 	// window, in order to keep the gain within sane boundries.
 
 	assert(bytes_acked > 0);
-	double window_factor = (double)std::min(bytes_acked, max_window) / (double)std::max(max_window, bytes_acked);
+	double window_factor = std::min<double>(bytes_acked, max_window) / std::max<double>(max_window, bytes_acked);
 
 	double delay_factor = off_target / target;
 	double scaled_gain = MAX_CWND_INCREASE_BYTES_PER_RTT * window_factor * delay_factor;
@@ -1686,7 +1686,7 @@ void UTPSocket::apply_ccontrol(size_t bytes_acked, uint32 actual_delay, int64 mi
 	// to the number of bytes that were acked, so that once one window has been acked (one rtt)
 	// the increase limit is not exceeded
 	// the +1. is to allow for floating point imprecision
-	assert(scaled_gain <= 1. + MAX_CWND_INCREASE_BYTES_PER_RTT * (double)std::min(bytes_acked, max_window) / (double)std::max(max_window, bytes_acked));
+	assert(scaled_gain <= 1. + MAX_CWND_INCREASE_BYTES_PER_RTT * std::min<double>(bytes_acked, max_window) / std::max<double>(max_window, bytes_acked));
 
 	if (scaled_gain > 0 && ctx->current_ms - last_maxed_out_window > 1000) {
 		// if it was more than 1 second since we tried to send a packet
@@ -3339,7 +3339,7 @@ int utp_getpeername(utp_socket *conn, struct sockaddr *addr, socklen_t *addrlen)
 
 	socklen_t len;
 	const SOCKADDR_STORAGE sa = conn->addr.get_sockaddr_storage(&len);
-	*addrlen = std::min(len, *addrlen);
+	*addrlen = std::min<socklen_t>(len, *addrlen);
 	memcpy(addr, &sa, *addrlen);
 	return 0;
 }
