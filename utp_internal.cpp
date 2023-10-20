@@ -20,7 +20,6 @@
  * THE SOFTWARE.
  */
 
-#include <algorithm>
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
@@ -30,6 +29,7 @@
 #include <limits.h> // for UINT_MAX
 #include <time.h>
 
+#include <algorithm>
 #include <limits>
 
 #include "utp_types.h"
@@ -1708,7 +1708,7 @@ void UTPSocket::apply_ccontrol(size_t bytes_acked, uint32 actual_delay, int64 mi
 			slow_start = false;
 			ssthresh = max_window;
 		} else {
-			max_window = std::max(ss_cwnd, ledbat_cwnd);
+			max_window = std::max<size_t>(ss_cwnd, ledbat_cwnd);
 		}
 	} else {
 		max_window = ledbat_cwnd;
@@ -2081,8 +2081,8 @@ size_t utp_process_incoming(UTPSocket *conn, const byte *packet, size_t len, boo
 			// of the curve formed by the average delay samples,
 			// we can cancel out the actual offset to make sure
 			// we won't have problems with wrapping.
-			int min_sample = std::min(prev_average_delay, conn->average_delay);
-			int max_sample = std::max(prev_average_delay, conn->average_delay);
+			int min_sample = std::min<int32>(prev_average_delay, conn->average_delay);
+			int max_sample = std::max<int32>(prev_average_delay, conn->average_delay);
 
 			// normalize around zero. Try to keep the min <= 0 and max >= 0
 			int adjust = 0;
