@@ -1966,7 +1966,7 @@ size_t utp_process_incoming(UTPSocket *conn, const byte *packet, size_t len, boo
 	// from the other peer. Our delay cannot exceed
 	// the rtt of the packet. If it does, clamp it.
 	// this is done in apply_ledbat_ccontrol()
-	int64 min_rtt = std::numeric_limits<int64>::max();
+	int64 min_rtt = std::numeric_limits<int64_t>::max();
 
 	uint64 now = utp_call_get_microseconds(conn->ctx, conn);
 
