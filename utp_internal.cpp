@@ -2504,7 +2504,7 @@ UTPSocket::~UTPSocket()
 		ctx->last_utp_socket = NULL;
 	}
 
-	assert(!ctx->utp_sockets.contains(UTPSocketKey{addr, conn_id_recv}));
+	assert(!ctx->utp_sockets.contains(UTPSocketKey{ addr, conn_id_recv }));
 
 	// remove the socket from ack_sockets if it was there also
 	removeSocketFromAckList(this);
@@ -2540,7 +2540,7 @@ void utp_initialize_socket(	utp_socket *conn,
 			conn_seed = utp_call_get_random(conn->ctx, conn);
 			// we identify v1 and higher by setting the first two bytes to 0x0001
 			conn_seed &= 0xffff;
-		} while (conn->ctx->utp_sockets.contains(UTPSocketKey{psaddr, conn_seed}));
+		} while (conn->ctx->utp_sockets.contains(UTPSocketKey{ psaddr, conn_seed }));
 
 		conn_id_recv += conn_seed;
 		conn_id_send += conn_seed;
@@ -2806,18 +2806,22 @@ int utp_connect(utp_socket *conn, const struct sockaddr *to, socklen_t tolen)
 	return 0;
 }
 
-// id is either our recv id or our send id
-// if it's our send id, and we initiated the connection, our recv id is id + 1
-// if it's our send id, and we did not initiate the connection, our recv id is id - 1
-// we have to check every case
 UTPSocket* LookupAdjacent(utp_context *ctx, PackedSockAddr const& addr, uint32 const id) {
-	if (auto* conn = ctx->utp_sockets.lookup(UTPSocketKey{addr, id}); conn != nullptr)
+	// id is either our recv id or our send id
+	// if it's our send id, and we initiated the connection, our recv id is id + 1
+	// if it's our send id, and we did not initiate the connection, our recv id is id - 1
+	// we have to check every case
+
+	auto key = UTPSocketKey{ addr, id };
+	if (auto* conn = ctx->utp_sockets.lookup(key); conn != nullptr)
 		return conn;
 
-	if (auto* conn = ctx->utp_sockets.lookup(UTPSocketKey{addr, id + 1}); conn != nullptr && conn->conn_id_send == id)
+	key.recv_id = id + 1;
+	if (auto* conn = ctx->utp_sockets.lookup(key); conn != nullptr && conn->conn_id_send == id)
 		return conn;
 
-	if (auto* conn = ctx->utp_sockets.lookup(UTPSocketKey{addr, id - 1}); conn != nullptr && conn->conn_id_send == id)
+	key.recv_id = id - 1;
+	if (auto* conn = ctx->utp_sockets.lookup(key); conn != nullptr && conn->conn_id_send == id)
 		return conn;
 
 	return nullptr;
@@ -2891,7 +2895,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 
 		if (ctx->last_utp_socket && ctx->last_utp_socket->addr == addr && ctx->last_utp_socket->conn_id_recv == id) {
 			conn = ctx->last_utp_socket;
-		} else if (auto* lookup = ctx->utp_sockets.lookup(UTPSocketKey{addr, id}); lookup != nullptr) {
+		} else if (auto* lookup = ctx->utp_sockets.lookup(UTPSocketKey{ addr, id }); lookup != nullptr) {
 			conn = ctx->last_utp_socket = lookup;
 		}
 
@@ -2949,7 +2953,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 		ctx->log(UTP_LOG_DEBUG, NULL, "Incoming connection from %s", addrfmt(addr, addrbuf));
 		#endif
 
-		if (ctx->utp_sockets.contains(UTPSocketKey{addr, id + 1})) {
+		if (ctx->utp_sockets.contains(UTPSocketKey{ addr, id + 1 })) {
 
 			#if UTP_DEBUG_LOGGING
 			ctx->log(UTP_LOG_DEBUG, NULL, "rejected incoming connection, connection already exists");
