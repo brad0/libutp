@@ -2504,10 +2504,7 @@ UTPSocket::~UTPSocket()
 		ctx->last_utp_socket = NULL;
 	}
 
-	// Remove object from the global hash table
-	UTPSocketKeyData* kd = ctx->utp_sockets->Delete(UTPSocketKey(addr, conn_id_recv));
-	(void)kd;
-	assert(kd);
+	assert(!ctx->utp_sockets.contains(UTPSocketKey{addr, conn_id_recv}));
 
 	// remove the socket from ack_sockets if it was there also
 	removeSocketFromAckList(this);
@@ -2524,12 +2521,8 @@ UTPSocket::~UTPSocket()
 	free(outbuf.elements);
 }
 
-void UTP_FreeAll(struct UTPSocketHT *utp_sockets) {
-	utp_hash_iterator_t it;
-	UTPSocketKeyData* keyData;
-	for (keyData = utp_sockets->Iterate(it); keyData; keyData = utp_sockets->Iterate(it)) {
-		delete keyData->socket;
-	}
+void utp_socket_delete(UTPSocket* sock) {
+	delete sock;
 }
 
 void utp_initialize_socket(	utp_socket *conn,
@@ -2547,7 +2540,7 @@ void utp_initialize_socket(	utp_socket *conn,
 			conn_seed = utp_call_get_random(conn->ctx, conn);
 			// we identify v1 and higher by setting the first two bytes to 0x0001
 			conn_seed &= 0xffff;
-		} while (conn->ctx->utp_sockets->Lookup(UTPSocketKey(psaddr, conn_seed)));
+		} while (conn->ctx->utp_sockets.contains(UTPSocketKey{psaddr, conn_seed}));
 
 		conn_id_recv += conn_seed;
 		conn_id_send += conn_seed;
@@ -2573,7 +2566,7 @@ void utp_initialize_socket(	utp_socket *conn,
 	conn->mtu_reset();
 	conn->mtu_last = conn->mtu_ceiling;
 
-	conn->ctx->utp_sockets->Add(UTPSocketKey(conn->addr, conn->conn_id_recv))->socket = conn;
+	conn->ctx->utp_sockets[UTPSocketKey{ conn->addr, conn->conn_id_recv }].reset(conn);
 
 	// we need to fit one packet in the window when we start the connection
 	conn->max_window = conn->get_packet_size();
@@ -2813,6 +2806,24 @@ int utp_connect(utp_socket *conn, const struct sockaddr *to, socklen_t tolen)
 	return 0;
 }
 
+// id is either our recv id or our send id
+// if it's our send id, and we initiated the connection, our recv id is id + 1
+// if it's our send id, and we did not initiate the connection, our recv id is id - 1
+// we have to check every case
+UTPSocket* LookupAdjacent(utp_context *ctx, PackedSockAddr const& addr, uint32 const id) {
+	if (auto* conn = ctx->utp_sockets.lookup(UTPSocketKey{addr, id}); conn != nullptr)
+		return conn;
+
+	if (auto* conn = ctx->utp_sockets.lookup(UTPSocketKey{addr, id + 1}); conn != nullptr && conn->conn_id_send == id)
+		return conn;
+
+	if (auto* conn = ctx->utp_sockets.lookup(UTPSocketKey{addr, id - 1}); conn != nullptr && conn->conn_id_send == id)
+		return conn;
+
+	return nullptr;
+}
+
+
 // Returns 1 if the UDP payload was recognized as a UTP packet, or 0 if it was not
 int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const struct sockaddr *to, socklen_t tolen)
 {
@@ -2854,27 +2865,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 	const byte flags = pf1->type();
 
 	if (flags == ST_RESET) {
-		// id is either our recv id or our send id
-		// if it's our send id, and we initiated the connection, our recv id is id + 1
-		// if it's our send id, and we did not initiate the connection, our recv id is id - 1
-		// we have to check every case
-
-		UTPSocketKeyData* keyData = ctx->utp_sockets->Lookup(UTPSocketKey(addr, id));
-		if (!keyData) {
-			keyData = ctx->utp_sockets->Lookup(UTPSocketKey(addr, id + 1));
-			if (keyData && keyData->socket->conn_id_send != id) {
-				keyData = NULL;
-			}
-		}
-		if (!keyData) {
-			keyData = ctx->utp_sockets->Lookup(UTPSocketKey(addr, id - 1));
-			if (keyData && keyData->socket->conn_id_send != id) {
-				keyData = NULL;
-			}
-		}
-		if (keyData) {
-			UTPSocket* conn = keyData->socket;
-
+		if (auto* conn = LookupAdjacent(ctx, addr, id); conn != nullptr) {
 			#if UTP_DEBUG_LOGGING
 			ctx->log(UTP_LOG_DEBUG, NULL, "recv RST for existing connection");
 			#endif
@@ -2900,12 +2891,8 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 
 		if (ctx->last_utp_socket && ctx->last_utp_socket->addr == addr && ctx->last_utp_socket->conn_id_recv == id) {
 			conn = ctx->last_utp_socket;
-		} else {
-			UTPSocketKeyData* keyData = ctx->utp_sockets->Lookup(UTPSocketKey(addr, id));
-			if (keyData) {
-				conn = keyData->socket;
-				ctx->last_utp_socket = conn;
-			}
+		} else if (auto* lookup = ctx->utp_sockets.lookup(UTPSocketKey{addr, id}); lookup != nullptr) {
+			conn = ctx->last_utp_socket = lookup;
 		}
 
 		if (conn) {
@@ -2962,8 +2949,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 		ctx->log(UTP_LOG_DEBUG, NULL, "Incoming connection from %s", addrfmt(addr, addrbuf));
 		#endif
 
-		UTPSocketKeyData* keyData = ctx->utp_sockets->Lookup(UTPSocketKey(addr, id + 1));
-		if (keyData) {
+		if (ctx->utp_sockets.contains(UTPSocketKey{addr, id + 1})) {
 
 			#if UTP_DEBUG_LOGGING
 			ctx->log(UTP_LOG_DEBUG, NULL, "rejected incoming connection, connection already exists");
@@ -2972,7 +2958,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 			return 1;
 		}
 
-		if (ctx->utp_sockets->GetCount() > 3000) {
+		if (ctx->utp_sockets.size() > 3000) {
 
 			#if UTP_DEBUG_LOGGING
 			ctx->log(UTP_LOG_DEBUG, NULL, "rejected incoming connection, too many uTP sockets %d", ctx->utp_sockets->GetCount());
@@ -3059,22 +3045,8 @@ static UTPSocket* parse_icmp_payload(utp_context *ctx, const byte *buffer, size_
 		return NULL;
 	}
 
-	UTPSocketKeyData* keyData = ctx->utp_sockets->Lookup(UTPSocketKey(addr, id));
-	if (!keyData) {
-		keyData = ctx->utp_sockets->Lookup(UTPSocketKey(addr, id + 1));
-		if (keyData && keyData->socket->conn_id_send != id) {
-			keyData = NULL;
-		}
-	}
-	if (!keyData) {
-		keyData = ctx->utp_sockets->Lookup(UTPSocketKey(addr, id - 1));
-		if (keyData && keyData->socket->conn_id_send != id) {
-			keyData = NULL;
-		}
-	}
-	if (keyData) {
-		return keyData->socket;
-	}
+	if (auto* const conn = LookupAdjacent(ctx, addr, id); conn != nullptr)
+		return conn;
 
 	#if UTP_DEBUG_LOGGING
 	ctx->log(UTP_LOG_DEBUG, NULL, "Ignoring ICMP from %s: No matching connection found for id %u", addrfmt(addr, addrbuf), id);
@@ -3306,20 +3278,13 @@ void utp_check_timeouts(utp_context *ctx)
 	}
 	infos.shrink_to_fit();
 
-	utp_hash_iterator_t it;
-	UTPSocketKeyData* keyData;
-	for (keyData = ctx->utp_sockets->Iterate(it); keyData; keyData = ctx->utp_sockets->Iterate(it)) {
-		UTPSocket *conn = keyData->socket;
-		conn->check_timeouts();
-
-		// Check if the object was deleted
-		if (conn->state == CS_DESTROY) {
-			#if UTP_DEBUG_LOGGING
-			conn->log(UTP_LOG_DEBUG, "Destroying");
-			#endif
-			delete conn;
+	ctx->utp_sockets.erase_if(
+		[](auto& item){
+			auto& conn = item->second;
+			conn->check_timeouts();
+			return conn->state == CS_DESTROY;
 		}
-	}
+	);
 }
 
 int utp_getpeername(utp_socket *conn, struct sockaddr *addr, socklen_t *addrlen)
