@@ -23,7 +23,6 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
-#include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <limits.h> // for UINT_MAX
