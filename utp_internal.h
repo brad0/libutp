@@ -28,6 +28,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <vector>
 
 #include "utp.h"
@@ -98,6 +99,14 @@ struct UTPSocketKey {
 
 	uint32 compute_hash() const {
 		return recv_id ^ addr.compute_hash();
+	}
+};
+
+template<>
+struct std::hash<UTPSocketKey>
+{
+	std::size_t operator()(const UTPSocketKey& key) const {
+		return key.compute_hash();
 	}
 };
 
