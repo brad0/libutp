@@ -110,15 +110,19 @@ struct std::hash<UTPSocketKey>
 
 extern void utp_socket_delete(UTPSocket*);
 
+// Container that owns a set of UTPSockets.
+// The sockets are destroyed when removed from the container.
 class UTPSocketHT {
+	using Key = UTPSocketKey;
+	using Value = UTPSocket;
+
+	// UTPSocket is an opaque type, so we can't use it for V.
+	// Instead, use a unique_ptr<> which deletes via `utp_socket_delete()`.
 	struct SocketDeleter {
 		void operator()(UTPSocket* conn) const noexcept {
 			utp_socket_delete(conn);
 		}
 	};
-
-	using Key = UTPSocketKey;
-	using Value = UTPSocket;
 	using V = std::unique_ptr<Value, SocketDeleter>;
 	using Map = std::unordered_map<Key, V>;
 
