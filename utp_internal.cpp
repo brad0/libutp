@@ -35,7 +35,6 @@
 #include "utp_types.h"
 #include "utp_packedsockaddr.h"
 #include "utp_internal.h"
-#include "utp_hash.h"
 
 #define	TIMEOUT_CHECK_INTERVAL	500
 
