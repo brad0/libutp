@@ -670,7 +670,7 @@ struct UTPSocket {
 
 static void removeSocketFromAckList(UTPSocket *conn)
 {
-	auto const ida = conn->ida;
+	const auto ida = conn->ida;
 	if (ida < 0)
 		return;
 
@@ -2533,7 +2533,7 @@ void utp_initialize_socket(	utp_socket *conn,
 							uint32 conn_id_recv,
 							uint32 conn_id_send)
 {
-	PackedSockAddr psaddr = PackedSockAddr((const SOCKADDR_STORAGE*)addr, addrlen);
+	const auto psaddr = PackedSockAddr((const SOCKADDR_STORAGE*)addr, addrlen);
 
 	if (need_seed_gen) {
 		do {
@@ -2566,7 +2566,7 @@ void utp_initialize_socket(	utp_socket *conn,
 	conn->mtu_reset();
 	conn->mtu_last = conn->mtu_ceiling;
 
-	conn->ctx->utp_sockets[UTPSocketKey{ conn->addr, conn->conn_id_recv }].reset(conn);
+	conn->ctx->utp_sockets.add(UTPSocketKey{ psaddr, conn->conn_id_recv }, conn);
 
 	// we need to fit one packet in the window when we start the connection
 	conn->max_window = conn->get_packet_size();
@@ -2806,12 +2806,11 @@ int utp_connect(utp_socket *conn, const struct sockaddr *to, socklen_t tolen)
 	return 0;
 }
 
+// id is either our recv id or our send id
+// if it's our send id, and we initiated the connection, our recv id is id + 1
+// if it's our send id, and we did not initiate the connection, our recv id is id - 1
+// we have to check every case
 UTPSocket* LookupAdjacent(utp_context *ctx, PackedSockAddr const& addr, uint32 const id) {
-	// id is either our recv id or our send id
-	// if it's our send id, and we initiated the connection, our recv id is id + 1
-	// if it's our send id, and we did not initiate the connection, our recv id is id - 1
-	// we have to check every case
-
 	auto key = UTPSocketKey{ addr, id };
 	if (auto* conn = ctx->utp_sockets.lookup(key); conn != nullptr)
 		return conn;

@@ -133,12 +133,12 @@ public:
 	}
 
 	[[nodiscard]] Value* lookup(Key const& key) {
-		auto const iter = map_.find(key);
+		const auto iter = map_.find(key);
 		return iter != map_.end() ? iter->second.get() : nullptr;
 	}
 
-	V& operator[](Key const& key) {
-		return map_[key];
+	void add(Key const& key, Value* value) {
+		map_[key].reset(value);
 	}
 
 	void erase_if(std::function<bool(Map::iterator const&)> pred) {
