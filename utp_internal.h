@@ -65,7 +65,7 @@ enum bandwidth_type_t {
 struct PACKED_ATTRIBUTE RST_Info {
 	RST_Info() = default;
 
-  RST_Info(PackedSockAddr _addr, uint32 _connid, uint16 _ack_nr, uint64 _timestamp)
+	RST_Info(PackedSockAddr _addr, uint32 _connid, uint16 _ack_nr, uint64 _timestamp)
 		: addr{ _addr }
 		, connid{ _connid }
 		, ack_nr{ _ack_nr }
@@ -132,7 +132,7 @@ public:
 		return map_.size();
 	}
 
-	[[nodiscard]] Value* lookup(Key const& key) {
+	[[nodiscard]] Value* lookup(Key const& key) const {
 		const auto iter = map_.find(key);
 		return iter != map_.end() ? iter->second.get() : nullptr;
 	}
