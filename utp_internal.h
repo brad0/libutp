@@ -128,7 +128,7 @@ class UTPSocketHT {
 
 public:
 	[[nodiscard]] auto contains(Key const& key) const {
-		return map_.find(key) == map_.cend();
+		return map_.count(key) != 0U;
 	}
 
 	[[nodiscard]] auto size() const {
