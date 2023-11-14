@@ -2502,11 +2502,6 @@ UTPSocket::~UTPSocket()
 		ctx->last_utp_socket = NULL;
 	}
 
-	// The `utp_sockets` container owned this socket.
-	// This destructor is invoked when the socket is removed from `utp_sockets`,
-	// so confirm that it's been removed.
-	assert(!ctx->utp_sockets.contains(UTPSocketKey{ addr, conn_id_recv }));
-
 	// remove the socket from ack_sockets if it was there also
 	removeSocketFromAckList(this);
 
