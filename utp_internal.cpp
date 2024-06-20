@@ -2926,14 +2926,14 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 		if (ctx->rst_info.size() > RST_INFO_LIMIT) {
 
 			#if UTP_DEBUG_LOGGING
-			ctx->log(UTP_LOG_DEBUG, NULL, "recv not sending RST to non-SYN (limit at %u stored)", (uint)ctx->rst_info.GetCount());
+			ctx->log(UTP_LOG_DEBUG, NULL, "recv not sending RST to non-SYN (limit at %tu stored)", std::size(ctx->rst_info));
 			#endif
 
 			return 1;
 		}
 
 		#if UTP_DEBUG_LOGGING
-		ctx->log(UTP_LOG_DEBUG, NULL, "recv send RST to non-SYN (%u stored)", (uint)ctx->rst_info.GetCount());
+		ctx->log(UTP_LOG_DEBUG, NULL, "recv send RST to non-SYN (%tu stored)", std::size(ctx->rst_info));
 		#endif
 
 		ctx->rst_info.emplace_back(addr, id, seq_nr, ctx->current_ms);
@@ -2960,7 +2960,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 		if (ctx->utp_sockets.size() > 3000) {
 
 			#if UTP_DEBUG_LOGGING
-			ctx->log(UTP_LOG_DEBUG, NULL, "rejected incoming connection, too many uTP sockets %d", ctx->utp_sockets->GetCount());
+			ctx->log(UTP_LOG_DEBUG, NULL, "rejected incoming connection, too many uTP sockets %tu", std::size(ctx->utp_sockets));
 			#endif
 
 			return 1;
