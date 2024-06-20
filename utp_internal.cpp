@@ -3388,21 +3388,26 @@ void struct_utp_context::log(int level, utp_socket *socket, char const *fmt, ...
 
 	va_list va;
 	va_start(va, fmt);
-	log_unchecked(socket, fmt, va);
+	log_impl(socket, fmt, va);
 	va_end(va);
 }
 
 void struct_utp_context::log_unchecked(utp_socket *socket, char const *fmt, ...)
 {
 	va_list va;
+	va_start(va, fmt);
+	log_impl(socket, fmt, va);
+	va_end(va);
+}
+
+void struct_utp_context::log_impl(utp_socket *socket, char const *fmt, va_list va)
+{
 	char buf[4096];
 
-	va_start(va, fmt);
 	vsnprintf(buf, 4096, fmt, va);
 	buf[4095] = '\0';
-	va_end(va);
 
-	utp_call_log(this, socket, (const byte *)buf);
+	utp_call_log(this, socket, reinterpret_cast<const byte *>(buf));
 }
 
 inline bool struct_utp_context::would_log(int level)
